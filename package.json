@@ -1,0 +1,19 @@
+{
+  "name": "onshape-to-shaper",
+  "version": "1.0.0",
+  "description": "Extract from Onshape CAD to Shaper Origin CNC",
+  "main": "main.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hovissimo/onshape-to-shaper.git"
+  },
+  "author": "Hovis Biddle",
+  "license": "Unlicense",
+  "bugs": {
+    "url": "https://github.com/hovissimo/onshape-to-shaper/issues"
+  },
+  "homepage": "https://github.com/hovissimo/onshape-to-shaper#readme"
+}
