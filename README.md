@@ -8,6 +8,8 @@ This module provides a TypeScript/JavaScript API client for accessing the Onshap
 
 ## Features
 
+- ✅ **User Face Selection**: Interactive face selection using Onshape client messaging
+- ✅ **CLI Display**: Real-time face information display in terminal
 - ✅ OAuth HMAC-SHA256 authentication with Onshape API
 - ✅ Parse Onshape document URLs to extract identifiers
 - ✅ Retrieve parts from documents
@@ -16,7 +18,28 @@ This module provides a TypeScript/JavaScript API client for accessing the Onshap
 - ✅ Extract edge loops and curves for surface boundaries
 - ✅ Comprehensive TypeScript type definitions
 
-## Installation
+## Quick Start
+
+### Face Selection Tool (Interactive)
+
+The easiest way to get started is using the interactive face selection tool:
+
+```bash
+# Install dependencies
+npm install
+
+# Start the selection server
+npm run selection-server
+
+# In another terminal, serve the client app
+npm run serve-client
+```
+
+Then follow the [Face Selection Guide](./FACE_SELECTION_GUIDE.md) to set up the Onshape extension.
+
+### API Usage (Programmatic)
+
+For programmatic access to the Onshape API:
 
 ```bash
 npm install
@@ -41,7 +64,13 @@ export ONSHAPE_SECRET_KEY="your_secret_key"
 
 ## Usage
 
-### Basic Example
+### Interactive Face Selection
+
+See the [Face Selection Guide](./FACE_SELECTION_GUIDE.md) for a complete tutorial on using the interactive face selection tool.
+
+### Programmatic API Examples
+
+#### Basic Example
 
 ```typescript
 import { createOnshapeClient, OnshapeApiClient } from './src';
@@ -145,11 +174,16 @@ npm run dev
 
 ```
 src/
-├── index.ts           # Main entry point
-├── onshape-api.ts     # API client implementation
+├── index.ts              # Main entry point
+├── onshape-api.ts        # API client implementation
+├── selection-server.ts   # Server for face selection events
+├── cli.ts                # CLI tool for face selection
 ├── types/
-│   └── onshape.ts     # TypeScript type definitions
-└── example.ts         # Usage examples
+│   └── onshape.ts        # TypeScript type definitions
+└── example.ts            # API usage examples
+
+client/
+└── index.html            # Client app for Onshape iframe
 ```
 
 ## Implementation Status
