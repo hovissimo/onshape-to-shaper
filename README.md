@@ -8,8 +8,10 @@ This module provides a TypeScript/JavaScript API client for accessing the Onshap
 
 ## Features
 
+- ✅ **FeatureScript SVG Export**: Custom FeatureScript feature to convert faces to SVG files for CNC
 - ✅ **User Face Selection**: Interactive face selection using Onshape client messaging
 - ✅ **CLI Display**: Real-time face information display in terminal
+- ✅ **SVG Extraction Tool**: Extract SVG data from FeatureScript features via REST API
 - ✅ OAuth HMAC-SHA256 authentication with Onshape API
 - ✅ Parse Onshape document URLs to extract identifiers
 - ✅ Retrieve parts from documents
@@ -20,9 +22,27 @@ This module provides a TypeScript/JavaScript API client for accessing the Onshap
 
 ## Quick Start
 
+### FeatureScript SVG Export (Recommended)
+
+**Best for: Generating SVG files for CNC from Onshape faces**
+
+1. Upload the FeatureScript to Onshape (see [FeatureScript Guide](./FEATURESCRIPT_GUIDE.md))
+2. Add the custom feature to your Part Studio
+3. Select a planar face
+4. Extract the SVG:
+
+```bash
+npm install
+export ONSHAPE_ACCESS_KEY="your_key"
+export ONSHAPE_SECRET_KEY="your_secret"
+npm run extract-svg "https://cad.onshape.com/documents/.../w/.../e/..." output.svg
+```
+
+See the [FeatureScript Guide](./FEATURESCRIPT_GUIDE.md) for complete instructions.
+
 ### Face Selection Tool (Interactive)
 
-The easiest way to get started is using the interactive face selection tool:
+**Best for: Exploring face data and testing**
 
 ```bash
 # Install dependencies
