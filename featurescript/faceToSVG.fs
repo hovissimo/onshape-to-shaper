@@ -20,11 +20,12 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         annotation { "Name" : "Face to export", "Filter" : EntityType.FACE, "MaxNumberOfPicks" : 1 }
         definition.face is Query;
 
-        annotation { "Name" : "SVG Units" }
-        definition.units is LengthUnit;
+        annotation { "Name" : "SVG Units", "Default" : "mm",
+                     "UIHint" : UIHint.DISPLAY_SHORT }
+        definition.units is string;
 
         annotation { "Name" : "Decimal precision", "Default" : 3 }
-        isInteger(definition.precision, { (min) : 0, (max) : 6 } as IntegerBoundSpec);
+        isInteger(definition.precision, POSITIVE_COUNT_BOUNDS);
 
         annotation { "Name" : "Include dimensions" }
         definition.includeDimensions is boolean;
@@ -53,10 +54,9 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         var origin = plane.origin;
         var xAxis = plane.x;
         var yAxis = plane.y;
-        var normal = plane.normal;
 
         // Get all edges of the face
-        var edges = qOwnedByBody(qEdgeAdjacent(definition.face, EntityType.EDGE), qOwnerBody(definition.face));
+        var edges = qOwnedByBody(qAdjacent(definition.face, AdjacencyType.EDGE, EntityType.EDGE), qOwnerBody(definition.face));
         var edgeArray = evaluateQuery(context, edges);
 
         if (size(edgeArray) == 0)
@@ -160,7 +160,7 @@ function extractEdgeLoops(context is Context, face is Query, edges is array) ret
  */
 function edgeLoopToSVGPath(context is Context, edgeLoop is array,
                            origin is Vector, xAxis is Vector, yAxis is Vector,
-                           units is LengthUnit, precision is number, flipY is boolean,
+                           units is string, precision is number, flipY is boolean,
                            bounds is map) returns string
 {
     var pathCommands = [];
@@ -173,9 +173,6 @@ function edgeLoopToSVGPath(context is Context, edgeLoop is array,
         });
 
         // Get edge endpoints
-        var startParam = edgeGeom.trimmed ? edgeGeom.trim[0] : 0;
-        var endParam = edgeGeom.trimmed ? edgeGeom.trim[1] : 1;
-
         var startPoint3D = evEdgeTangentLine(context, {
             "edge" : edge,
             "parameter" : 0
@@ -210,9 +207,6 @@ function edgeLoopToSVGPath(context is Context, edgeLoop is array,
         else if (edgeGeom.curveType == CurveType.CIRCLE)
         {
             // Arc - need to determine if it's a full circle or arc
-            var radius = edgeGeom.radius;
-            var radius2D = radius / units;
-
             // For now, approximate with line (TODO: implement proper arc conversion)
             pathCommands = append(pathCommands, "L " ~ formatNumber(end2D.x, precision) ~ " " ~ formatNumber(end2D.y, precision));
 
@@ -237,11 +231,15 @@ function edgeLoopToSVGPath(context is Context, edgeLoop is array,
  */
 function project3DTo2D(point3D is Vector, origin is Vector,
                        xAxis is Vector, yAxis is Vector,
-                       units is LengthUnit, flipY is boolean) returns map
+                       units is string, flipY is boolean) returns map
 {
     var relativePos = point3D - origin;
-    var x = dot(relativePos, xAxis) / units;
-    var y = dot(relativePos, yAxis) / units;
+
+    // Convert string unit to actual unit value
+    var unitValue = getUnitValue(units);
+
+    var x = dot(relativePos, xAxis) / unitValue;
+    var y = dot(relativePos, yAxis) / unitValue;
 
     if (flipY)
     {
@@ -249,6 +247,23 @@ function project3DTo2D(point3D is Vector, origin is Vector,
     }
 
     return { "x" : x, "y" : y };
+}
+
+/**
+ * Convert unit string to FeatureScript unit value
+ */
+function getUnitValue(unitStr is string) returns ValueWithUnits
+{
+    if (unitStr == "mm")
+        return 1 * millimeter;
+    else if (unitStr == "cm")
+        return 1 * centimeter;
+    else if (unitStr == "in")
+        return 1 * inch;
+    else if (unitStr == "m")
+        return 1 * meter;
+    else
+        return 1 * millimeter; // Default to mm
 }
 
 /**
