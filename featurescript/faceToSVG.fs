@@ -1,5 +1,5 @@
-FeatureScript 2399;
-import(path : "onshape/std/common.fs", version : "2399.0");
+FeatureScript 2796;
+import(path : "onshape/std/common.fs", version : "2796.0");
 
 /**
  * Face to SVG Exporter
@@ -14,6 +14,7 @@ import(path : "onshape/std/common.fs", version : "2399.0");
  * 4. Copy the SVG from the feature properties or extract via API
  */
 
+annotation { "Feature Type Name" : "faceToSvg", "Feature Type Description" : "Convert a flat face to an SVG representation" }
 export const faceToSVG = defineFeature(function(context is Context, id is Id, definition is map)
     precondition
     {
@@ -21,7 +22,7 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         definition.face is Query;
 
         annotation { "Name" : "SVG Units", "Default" : "mm",
-                     "UIHint" : UIHint.DISPLAY_SHORT }
+                    "UIHint" : UIHint.DISPLAY_SHORT }
         definition.units is string;
 
         annotation { "Name" : "Decimal precision", "Default" : 3 }
@@ -36,8 +37,8 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
     {
         // Verify face is planar
         var faceGeometry = evSurfaceDefinition(context, {
-            "face" : definition.face
-        });
+                "face" : definition.face
+            });
 
         if (faceGeometry.surfaceType != SurfaceType.PLANE)
         {
@@ -46,9 +47,9 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
 
         // Get face plane for coordinate system
         var plane = evFaceTangentPlane(context, {
-            "face" : definition.face,
-            "parameter" : vector(0.5, 0.5) // Center of face
-        });
+                "face" : definition.face,
+                "parameter" : vector(0.5, 0.5) // Center of face
+            });
 
         // Create 2D coordinate system on the face
         var origin = plane.origin;
@@ -74,8 +75,8 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         for (var loop in loops)
         {
             var pathData = edgeLoopToSVGPath(context, loop, origin, xAxis, yAxis,
-                                             definition.units, definition.precision,
-                                             definition.flipY, bounds);
+            definition.units, definition.precision,
+            definition.flipY, bounds);
             svgPaths = append(svgPaths, pathData);
         }
 
@@ -129,16 +130,16 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
 
         // Store SVG as feature attribute
         setAttribute(context, {
-            "entities" : qCreatedBy(id, EntityType.BODY),
-            "name" : "svgData",
-            "value" : svg
-        });
+                    "entities" : qCreatedBy(id, EntityType.BODY),
+                    "name" : "svgData",
+                    "value" : svg
+                });
 
         // Also store as a more accessible attribute
         setFeatureComputedParameter(context, id, {
-            "name" : "svgOutput",
-            "value" : svg
-        });
+                    "name" : "svgOutput",
+                    "value" : svg
+                });
 
         // Report to user
         reportFeatureInfo(context, id, "SVG generated: " ~ formatNumber(width, 2) ~ " x " ~ formatNumber(height, 2) ~ " " ~ definition.units);
@@ -159,9 +160,9 @@ function extractEdgeLoops(context is Context, face is Query, edges is array) ret
  * Convert an edge loop to SVG path data
  */
 function edgeLoopToSVGPath(context is Context, edgeLoop is array,
-                           origin is Vector, xAxis is Vector, yAxis is Vector,
-                           units is string, precision is number, flipY is boolean,
-                           bounds is map) returns string
+    origin is Vector, xAxis is Vector, yAxis is Vector,
+    units is string, precision is number, flipY is boolean,
+    bounds is map) returns string
 {
     var pathCommands = [];
     var firstPoint = undefined;
@@ -169,19 +170,19 @@ function edgeLoopToSVGPath(context is Context, edgeLoop is array,
     for (var edge in edgeLoop)
     {
         var edgeGeom = evCurveDefinition(context, {
-            "edge" : edge
-        });
+                "edge" : edge
+            });
 
         // Get edge endpoints
         var startPoint3D = evEdgeTangentLine(context, {
-            "edge" : edge,
-            "parameter" : 0
-        }).origin;
+                    "edge" : edge,
+                    "parameter" : 0
+                }).origin;
 
         var endPoint3D = evEdgeTangentLine(context, {
-            "edge" : edge,
-            "parameter" : 1
-        }).origin;
+                    "edge" : edge,
+                    "parameter" : 1
+                }).origin;
 
         // Project to 2D
         var start2D = project3DTo2D(startPoint3D, origin, xAxis, yAxis, units, flipY);
@@ -230,8 +231,8 @@ function edgeLoopToSVGPath(context is Context, edgeLoop is array,
  * Project a 3D point onto the 2D face coordinate system
  */
 function project3DTo2D(point3D is Vector, origin is Vector,
-                       xAxis is Vector, yAxis is Vector,
-                       units is string, flipY is boolean) returns map
+    xAxis is Vector, yAxis is Vector,
+    units is string, flipY is boolean) returns map
 {
     var relativePos = point3D - origin;
 
