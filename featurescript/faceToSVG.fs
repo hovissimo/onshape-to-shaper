@@ -13,6 +13,43 @@ import(path : "onshape/std/common.fs", version : "2796.0");
  * 3. The SVG will be stored as a feature attribute
  * 4. Copy the SVG from the feature properties or extract via API
  */
+ 
+/**
+ * Extract edge loops from a face
+ * Returns array of loops, where each loop is an array of edges
+ */
+function extractEdgeLoops(context is Context, face is Query, edgeQueries is array) returns array
+{
+    println("extractEdgeLoops");
+    var edgeQuery = edgeQueries[0];
+        var curve = evCurveDefinition(context, { "edge" : edgeQuery });
+        var tanlines = evEdgeTangentLines(context, {
+                "edge" : edgeQuery,
+                "parameters" : [0,1],
+        });
+
+        println('1');
+        //debug(context, tanlines[0]);
+        
+        println('2');
+        //debug(context, tanlines[1]);
+        
+        println('endpoints');
+        var endpoints = qAdjacent(edgeQuery, AdjacencyType.VERTEX, EntityType.VERTEX);
+        evVertexPoint(context, {
+                "vertex" : evaluateQuery(context, endpoints)[0]
+        });
+        
+    var edges = [];
+    for (var edgeQuery in edgeQueries)
+    {
+        //debug(context, curve);ß
+        append(edges, curve);
+    }
+    // For now, return all edges as a single loop
+    // TODO: Implement proper loop detection for faces with holes
+    return [edges];
+}
 
 annotation { "Feature Type Name" : "faceToSvg", "Feature Type Description" : "Convert a flat face to an SVG representation" }
 export const faceToSVG = defineFeature(function(context is Context, id is Id, definition is map)
@@ -54,11 +91,14 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         // Create 2D coordinate system on the face
         var origin = plane.origin;
         var xAxis = plane.x;
-        var yAxis = plane.y;
-
+        var yAxis = normalize(cross(plane.normal, plane.x));
+        
         // Get all edges of the face
         var edges = qOwnedByBody(qAdjacent(definition.face, AdjacencyType.EDGE, EntityType.EDGE), qOwnerBody(definition.face));
         var edgeArray = evaluateQuery(context, edges);
+        println("edgeArray size: " ~ size(edgeArray));
+        println("xAxis is: " ~ xAxis);
+        println("yAxis is: " ~ yAxis);
 
         if (size(edgeArray) == 0)
         {
@@ -67,6 +107,7 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
 
         // Extract edge loops (outer boundary and holes)
         var loops = extractEdgeLoops(context, definition.face, edgeArray);
+        //debug(context, loops);
 
         // Convert edges to SVG paths
         var svgPaths = [];
@@ -145,21 +186,14 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         reportFeatureInfo(context, id, "SVG generated: " ~ formatNumber(width, 2) ~ " x " ~ formatNumber(height, 2) ~ " " ~ definition.units);
     });
 
-/**
- * Extract edge loops from a face
- * Returns array of loops, where each loop is an array of edges
- */
-function extractEdgeLoops(context is Context, face is Query, edges is array) returns array
-{
-    // For now, return all edges as a single loop
-    // TODO: Implement proper loop detection for faces with holes
-    return [edges];
-}
+
 
 /**
  * Convert an edge loop to SVG path data
  */
-function edgeLoopToSVGPath(context is Context, edgeLoop is array,
+function edgeLoopToSVGPath(
+    context is Context,
+    edgeLoop is array,
     origin is Vector, xAxis is Vector, yAxis is Vector,
     units is string, precision is number, flipY is boolean,
     bounds is map) returns string
@@ -230,9 +264,13 @@ function edgeLoopToSVGPath(context is Context, edgeLoop is array,
 /**
  * Project a 3D point onto the 2D face coordinate system
  */
-function project3DTo2D(point3D is Vector, origin is Vector,
-    xAxis is Vector, yAxis is Vector,
-    units is string, flipY is boolean) returns map
+function project3DTo2D(
+    point3D is Vector,
+    origin is Vector,
+    xAxis is Vector,
+    yAxis is Vector,
+    units is string,
+    flipY is boolean) returns map
 {
     var relativePos = point3D - origin;
 
