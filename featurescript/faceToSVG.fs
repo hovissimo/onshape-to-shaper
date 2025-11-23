@@ -13,42 +13,202 @@ import(path : "onshape/std/common.fs", version : "2796.0");
  * 3. The SVG will be stored as a feature attribute
  * 4. Copy the SVG from the feature properties or extract via API
  */
- 
+/**
+ * Get the endpoints of the passed edge query
+ */
+function getEndpointsForEdge(context, edgeQuery is Query)
+{
+    var qEndpoints = evaluateQuery(context, qAdjacent(edgeQuery, AdjacencyType.VERTEX, EntityType.VERTEX));
+    var endpoints = [];
+    for (var qE in qEndpoints)
+    {
+        var point = evVertexPoint(context, { "vertex" : qE });
+        endpoints = append(endpoints, point);
+    }
+    return endpoints;
+}
+
+function assignLoopToEdgeIndex(loops is box, edgeData is box, loopIndex is number, edgeIndex is number)
+{
+    var loopId = "loop" ~ loopIndex;
+    if (edgeData[][edgeIndex] == undefined)
+        edgeData[][edgeIndex] = {};
+    if (edgeData[][edgeIndex].loop == undefined)
+    {
+        edgeData[][edgeIndex].loop = loopId;
+    }
+    else
+    {
+        println("ERROR: This edge already belongs to a loop.");
+    }
+    if (loops[][loopId] == undefined)
+        loops[][loopId] = [];
+    loops[][loopId] = append(loops[][loopId], edgeIndex);
+    //println("[assignLoopToEdgeIndex] loops[][\"" ~ loopId ~ "\"]: " ~ loops[][loopId]);
+    //println("[assignLoopToEdgeIndex] edgeData[][\"" ~ edgeIndex ~ "\"]: " ~ edgeData[][edgeIndex]);
+}
+
+// This function helps us walk along an edge loop, either interior or exterior, returning the id of the next connected edge.
+// The "forward" direction is the opposite direction of `lastEndpoint`.
+//
+//  Params:
+//      edges  array[edgeQuery]
+//          an evaluated query of edges that are the boundaries of the selected face
+//      endpointsToEdges  map[Vertex(array) -> array[number]]
+//          a map of evaluated vertexes (the endpoints of the edges in `edges`) to
+//          an array of which edges that endpoint belongs to.
+//      thisEdgeId  number
+//          the index of the current edge in `edges`
+//      lastEndpoint  Vector(array)
+//          the next edge is the current edge's neighbor in the opposite direction of lastEndpoint
+//  Returns:
+//      array of [nextEdgeId, connectingEndpoint]
+function getNextConnectedEdge(context is Context, edges is array, endpointsToEdges is map, thisEdgeId is number, lastEndpoint is array)
+{
+    var thisEdgeEndpoints = getEndpointsForEdge(context, edges[thisEdgeId]);
+    var forwardEndpoint = (lastEndpoint == thisEdgeEndpoints[1]) ? thisEdgeEndpoints[0] : thisEdgeEndpoints[1];
+    var forwardEndpointEdgeIds = endpointsToEdges[forwardEndpoint];
+    if (size(forwardEndpointEdgeIds) != 2)
+    {
+        // We expect all the edges around the selected face to form one or more loops.
+        // That means each edge (be it a line, a curve, or whatever) should have exactly
+        // two endpoints. If that's not true, then this script has bad assumptions.
+        println("ERROR: Unexpected number of edges for the first endpoint of edge " ~ thisEdgeId ~ ".");
+        debug(context, forwardEndpoint);
+        debug(context, edges[thisEdgeId]);
+    }
+    return [
+            (forwardEndpointEdgeIds[1] == thisEdgeId) ? forwardEndpointEdgeIds[0] : forwardEndpointEdgeIds[1],
+            forwardEndpoint,
+        ];
+}
+
 /**
  * Extract edge loops from a face
  * Returns array of loops, where each loop is an array of edges
  */
-function extractEdgeLoops(context is Context, face is Query, edgeQueries is array) returns array
+function extractEdgeLoops(context is Context, face is Query) returns array
 {
-    println("extractEdgeLoops");
-    var edgeQuery = edgeQueries[0];
-        var curve = evCurveDefinition(context, { "edge" : edgeQuery });
-        var tanlines = evEdgeTangentLines(context, {
-                "edge" : edgeQuery,
-                "parameters" : [0,1],
-        });
+    // Get all edges of the face
+    var edgeQueries = qOwnedByBody(qAdjacent(face, AdjacencyType.EDGE, EntityType.EDGE), qOwnerBody(face));
+    var edges = evaluateQuery(context, edgeQueries);
+    println("There are " ~ size(edges) ~ " edges.");
 
-        println('1');
-        //debug(context, tanlines[0]);
-        
-        println('2');
-        //debug(context, tanlines[1]);
-        
-        println('endpoints');
-        var endpoints = qAdjacent(edgeQuery, AdjacencyType.VERTEX, EntityType.VERTEX);
-        evVertexPoint(context, {
-                "vertex" : evaluateQuery(context, endpoints)[0]
-        });
-        
-    var edges = [];
-    for (var edgeQuery in edgeQueries)
+    //println("Working with this edge: " ~ edge); debug(context, edge);
+
+
+    // collect map of vertices to edges for efficient edge matching
+    var endpointsToEdges = {};
+    for (var i = 0; i < size(edges); i += 1)
     {
-        //debug(context, curve);ß
-        append(edges, curve);
+        var edge = edges[i];
+        //println("looping on edge " ~ i);
+        var endpoints = getEndpointsForEdge(context, edge);
+
+        for (var j = 0; j < size(endpoints); j += 1)
+        {
+            var endpoint = endpoints[j];
+            //println("looping on endpoint " ~ i ~ "." ~ j);
+
+            //areQueriesEquivalent(context, 1, 2)
+            //debug(context, endpoint);
+            //debug(context, endpointsToEdges[endpoint]);
+            if (endpointsToEdges[endpoint] == undefined)
+            {
+                endpointsToEdges[endpoint] = [];
+            }
+
+            // Add the index of this edge to the list of edges for this endpoint
+            endpointsToEdges[endpoint] = append(endpointsToEdges[endpoint], i);
+        }
     }
-    // For now, return all edges as a single loop
-    // TODO: Implement proper loop detection for faces with holes
-    return [edges];
+
+    // make a map of endpoints to edges
+    // walk the edges -
+    //   for each each: pick an endpoint and find the next edge
+    //   assigned each edge to a loop
+
+    var edgeData = new box({});
+    var loops = new box({});
+
+    //var colors = [
+    //    DebugColor.GREEN,
+    //    DebugColor.YELLOW,
+    //    DebugColor.BLUE,
+    //    DebugColor.RED,
+    //    DebugColor.CYAN,
+    //    DebugColor.MAGENTA,
+    //    DebugColor.BLACK,
+    //];
+
+    // Walk the edges of this face and assign each edge to a loop.
+    // We walk the edges of this face by connection, and secondarily by index.
+    // We should visit each edge exactly once.
+    //
+    // Walking edges by connection (inner loop):
+    //      Find the next edge by looking at the current edge's endpoints, and finding the edge connected to
+    //      the "forward" endpoint that's not this edge.
+    //
+    // Walking edges by index (outer loop):
+    //      Increment the edge index, skipping any edges already assigned to a loop.
+    var currentLoopIndex = 0;
+    for (var i = 0; i < size(edges); i += 1)
+    {
+        // Skip any edges we've already visited and assigned to a loop
+        if (edgeData[][i]?.loop != undefined)
+        {
+            //println("Skipping already visited edge: " ~ i);
+            continue;
+        }
+        
+        // Set initial vars for this edge, and walk connected edges until we complete this loop...
+        var thisEdgeId = i;
+        var endpoints = getEndpointsForEdge(context, edges[thisEdgeId]);
+        if (size(endpoints) == 0) {
+            // Special case: This edge has no endpoints, implying it is a circle or ellipse and is already a complete loop.
+            assignLoopToEdgeIndex(loops, edgeData, currentLoopIndex, thisEdgeId);
+            println("loop" ~ currentLoopIndex ~ " is complete. It has these edges: " ~ loops[]["loop" ~ currentLoopIndex]);
+            //debug(context, edges[thisEdgeId], colors[currentLoopIndex]);
+            currentLoopIndex += 1;
+            continue;
+        }
+        var forwardEndpoint = endpoints[0]; // Just pick one to set direction
+        while (true)
+        {
+            //debug(context, edges[thisEdgeId], colors[currentLoopIndex]);
+
+            if (edgeData[][thisEdgeId]?.loop == undefined)
+            {
+                // This edge is unassigned, assign it to this loop.
+                assignLoopToEdgeIndex(loops, edgeData, currentLoopIndex, thisEdgeId);
+            }
+            else if (edgeData[][thisEdgeId].loop != ("loop" ~ currentLoopIndex))
+            {
+                // While walking connected edges, we found an edge already assigned to a different loop.
+                // We expect all the edges around the selected face to form one or more loops.
+                // Each edge of the face should only belong to one loop.
+                println("ERROR: Trying to join edges to different loops!");
+                break;
+            }
+            else if (edgeData[][thisEdgeId].loop == ("loop" ~ currentLoopIndex))
+            {
+                // While walking connected edges, we found an edge already assigned to the current loop.
+                println("loop" ~ currentLoopIndex ~ " is complete. It has these edges: " ~ loops[]["loop" ~ currentLoopIndex]);
+                currentLoopIndex += 1;
+                break;
+            }
+
+            // Before we loop, get the next edge (the other edge of the forwardEndpoint that's not this edge)
+            var nextEdgeResult = getNextConnectedEdge(context, edges, endpointsToEdges, thisEdgeId, forwardEndpoint);
+            thisEdgeId = nextEdgeResult[0];
+            forwardEndpoint = nextEdgeResult[1];
+        }
+    }
+    
+    //println("loops[]: " ~ loops[]);
+    //println("edgeData[]: " ~ edgeData[]);
+    
+    return [edges, loops];
 }
 
 annotation { "Feature Type Name" : "faceToSvg", "Feature Type Description" : "Convert a flat face to an SVG representation" }
@@ -92,34 +252,26 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
         var origin = plane.origin;
         var xAxis = plane.x;
         var yAxis = normalize(cross(plane.normal, plane.x));
-        
-        // Get all edges of the face
-        var edges = qOwnedByBody(qAdjacent(definition.face, AdjacencyType.EDGE, EntityType.EDGE), qOwnerBody(definition.face));
-        var edgeArray = evaluateQuery(context, edges);
-        println("edgeArray size: " ~ size(edgeArray));
-        println("xAxis is: " ~ xAxis);
-        println("yAxis is: " ~ yAxis);
-
-        if (size(edgeArray) == 0)
-        {
-            throw regenError("No edges found on selected face");
-        }
 
         // Extract edge loops (outer boundary and holes)
-        var loops = extractEdgeLoops(context, definition.face, edgeArray);
+        var extractResult = extractEdgeLoops(context, definition.face);
+        var edges = extractResult[0];
+        var loops = extractResult[1];
         //debug(context, loops);
 
+        debug(context, 'done');
         // Convert edges to SVG paths
         var svgPaths = [];
         var bounds = { "minX" : undefined, "minY" : undefined, "maxX" : undefined, "maxY" : undefined };
 
-        for (var loop in loops)
+        for (var loop in loops[])
         {
-            var pathData = edgeLoopToSVGPath(context, loop, origin, xAxis, yAxis,
+            var pathData = edgeLoopToSVGPath(context, edges, loop.value, origin, xAxis, yAxis,
             definition.units, definition.precision,
             definition.flipY, bounds);
             svgPaths = append(svgPaths, pathData);
         }
+        debug(context, svgPaths);
 
         // Calculate dimensions
         var width = bounds.maxX - bounds.minX;
@@ -193,7 +345,8 @@ export const faceToSVG = defineFeature(function(context is Context, id is Id, de
  */
 function edgeLoopToSVGPath(
     context is Context,
-    edgeLoop is array,
+    edges is array,
+    edgeIndices is array,
     origin is Vector, xAxis is Vector, yAxis is Vector,
     units is string, precision is number, flipY is boolean,
     bounds is map) returns string
@@ -201,8 +354,9 @@ function edgeLoopToSVGPath(
     var pathCommands = [];
     var firstPoint = undefined;
 
-    for (var edge in edgeLoop)
+    for (var edgeIndex in edgeIndices)
     {
+        var edge = edges[edgeIndex];
         var edgeGeom = evCurveDefinition(context, {
                 "edge" : edge
             });
@@ -345,3 +499,16 @@ function joinStrings(strings is array, separator is string) returns string
     }
     return result;
 }
+
+/* evEdgeTangentLines
+   var tanlines = evEdgeTangentLines(context, {
+   "edge" : edgeQuery,
+   "parameters" : [0, 1],
+   });
+
+   println('1');
+   //debug(context, tanlines[0]);
+
+   println('2');
+   //debug(context, tanlines[1]);
+ */
